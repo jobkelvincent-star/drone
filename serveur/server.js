@@ -26,20 +26,21 @@ console.log(`Serveur démarré sur le port ${PORT}`);
 // =========================================================================
 
 // Plafond de dégâts par personnage = le plus gros coup unique qu'il puisse
-// réellement infliger (lu directement dans chaque d1-d8.html), + 10% de
-// marge pour les bonus de build (pilote/accessoires, max ~3% en pratique).
+// réellement infliger (lu directement dans chaque d1-d8.html), + 25% de
+// marge (portée à 25% après retours de tests, contre 10% initialement, pour
+// éviter que des dégâts légitimes ne se fassent écrêter par erreur).
 // Toute valeur au-delà est un signe de triche : on l'écrête au plafond.
 const PLAFOND_DEGATS_PAR_PERSONNAGE = {
-  d1: 495,   // Guêpe    — Double Laser (450 par tir)
-  d2: 880,   // Bastion  — Onde de Choc (800)
-  d3: 660,   // Bactérie — Orbe d'Énergie (600)
-  d4: 1760,  // Phalange — Missile Chercheur (1600, le plus gros coup ; pompe = 220/plomb)
-  d5: 440,   // Pyromane — Napalm impact (400 ; les ticks de brûlure sont plus petits)
-  d6: 880,   // Scorpion — Harpon Électrique (800 ; lames = 400)
-  d7: 2420,  // Faucon   — Frappe Orbitale (2200 ; tir de précision = 1400)
-  d8: 825    // Nexus    — Disque Rebondissant premier impact (750 ; IEM = 500)
+  d1: 563,   // Guêpe    — Double Laser (450 par tir)
+  d2: 1000,  // Bastion  — Onde de Choc (800)
+  d3: 750,   // Bactérie — Orbe d'Énergie (600)
+  d4: 2000,  // Phalange — Missile Chercheur (1600, le plus gros coup ; pompe = 220/plomb)
+  d5: 500,   // Pyromane — Napalm impact (400 ; les ticks de brûlure sont plus petits)
+  d6: 1000,  // Scorpion — Harpon Électrique (800 ; lames = 400)
+  d7: 2750,  // Faucon   — Frappe Orbitale (2200 ; tir de précision = 1400)
+  d8: 938    // Nexus    — Disque Rebondissant premier impact (750 ; IEM = 500)
 };
-const PLAFOND_DEGATS_DEFAUT = 2420; // si un personnage inconnu arrive un jour, on prend le plus haut plafond existant
+const PLAFOND_DEGATS_DEFAUT = 2750; // si un personnage inconnu arrive un jour, on prend le plus haut plafond existant
 
 // Anti-flood : au-delà de ce nombre de messages "degats" par seconde et par
 // attaquant, les messages en trop sont ignorés (volontairement large pour ne
@@ -162,17 +163,18 @@ const PLAFOND_VIE_DEFAUT = 7700; // si un personnage inconnu arrive un jour, pla
 // de chevauchement avec son ultime (+ 10% de marge). Un client qui spamme des dégâts au plafond
 // unitaire (sans respecter les cooldowns) se fait donc écrêter ici, même si chaque coup pris
 // isolément semblait valide.
+// Même logique que ci-dessus mais sur le DPS (dégâts par seconde), avec la même marge de 25%.
 const PLAFOND_DPS_PAR_PERSONNAGE = {
-  d1: 1650,  // Guêpe    — 900/1,2s normal, 900/0,6s pendant Surcharge (cadence doublée)
-  d2: 440,   // Bastion  — 800/2,0s, pas d'ultime dégâts
-  d3: 440,   // Bactérie — 600/1,5s, pas d'ultime dégâts réseau (soin ulti = self, pas encore réseau)
-  d4: 2625,  // Phalange — 1100/1,4s + pire cas : missile 1600 qui tombe la même seconde
-  d5: 1600,  // Pyromane — impact+DoT qui se chevauchent + pluie de cendres (1500/2,3s) pendant l'ulti
-  d6: 2080,  // Scorpion — 1200/1,1s + pire cas : Harpon 800 qui tombe la même seconde
-  d7: 3090,  // Faucon   — 1400/2,3s + pire cas : Frappe Orbitale 2200 qui tombe la même seconde
-  d8: 1065   // Nexus    — 750/1,6s (1er impact) + pire cas : IEM 500 qui tombe la même seconde
+  d1: 1900,  // Guêpe    — 900/1,2s normal, 900/0,6s pendant Surcharge (cadence doublée)
+  d2: 510,   // Bastion  — 800/2,0s, pas d'ultime dégâts
+  d3: 510,   // Bactérie — 600/1,5s, pas d'ultime dégâts réseau (soin ulti = self, pas encore réseau)
+  d4: 3020,  // Phalange — 1100/1,4s + pire cas : missile 1600 qui tombe la même seconde
+  d5: 1840,  // Pyromane — impact+DoT qui se chevauchent + pluie de cendres (1500/2,3s) pendant l'ulti
+  d6: 2390,  // Scorpion — 1200/1,1s + pire cas : Harpon 800 qui tombe la même seconde
+  d7: 3555,  // Faucon   — 1400/2,3s + pire cas : Frappe Orbitale 2200 qui tombe la même seconde
+  d8: 1225   // Nexus    — 750/1,6s (1er impact) + pire cas : IEM 500 qui tombe la même seconde
 };
-const PLAFOND_DPS_DEFAUT = 3090;
+const PLAFOND_DPS_DEFAUT = 3555;
 
 // Seule la Bactérie (d3) a un soin réseau à ce jour (l'Orbe d'Énergie sert aussi de dégâts) ;
 // tout autre personnage qui enverrait un message "soigner" est donc entièrement suspect.
@@ -477,7 +479,20 @@ setInterval(() => {
 const BOT_VITESSE = 6;      // unités/seconde
 const BOT_PORTEE = 20;
 const BOT_CADENCE = 1;      // secondes entre deux tirs (était 1.5 : les bots tiraient trop peu)
-const BOT_DEGATS = 6;       // par tir, indépendant du personnage (volontairement modeste)
+// Dégâts par tir de bot, proportionnels à l'arme réelle de chaque personnage (environ 1/10e du
+// plus gros coup unique listé dans PLAFOND_DEGATS_PAR_PERSONNAGE plus bas) : volontairement plus
+// modeste qu'un vrai joueur, mais cohérent avec la puissance relative de chaque drone.
+const BOT_DEGATS_PAR_PERSONNAGE = {
+  d1: 45,   // Guêpe    — ~1/10 de 450
+  d2: 80,   // Bastion  — ~1/10 de 800
+  d3: 60,   // Bactérie — ~1/10 de 600
+  d4: 160,  // Phalange — ~1/10 de 1600
+  d5: 40,   // Pyromane — ~1/10 de 400
+  d6: 80,   // Scorpion — ~1/10 de 800
+  d7: 220,  // Faucon   — ~1/10 de 2200
+  d8: 75    // Nexus    — ~1/10 de 750
+};
+const BOT_DEGATS_DEFAUT = 60;
 
 function simulerBot(partie, bot, delta) {
   bot.iaCooldown = (bot.iaCooldown || 0) - delta;
@@ -521,7 +536,8 @@ function simulerBot(partie, bot, delta) {
 
     const sousBouclier = partie.protegeJusqua[cible.pseudo] && Date.now() < partie.protegeJusqua[cible.pseudo];
     if (!sousBouclier) {
-      partie.pv[cible.pseudo] = Math.max(0, partie.pv[cible.pseudo] - BOT_DEGATS);
+      const degatsBot = BOT_DEGATS_PAR_PERSONNAGE[bot.personnage] || BOT_DEGATS_DEFAUT;
+      partie.pv[cible.pseudo] = Math.max(0, partie.pv[cible.pseudo] - degatsBot);
       partie.dernierAttaquant[cible.pseudo] = bot.pseudo;
       diffuserAPartie(partie, 'degats', { pseudo: cible.pseudo, pv: partie.pv[cible.pseudo], pvMax: partie.pvMax[cible.pseudo] });
       if (partie.pv[cible.pseudo] <= 0) gererMort(partie, cible);
